@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Caisse — Institut Ahsen Bouderbala</title>
+
+<!-- PWA iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Caisse">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Gestion financière — Institut Ahsen Bouderbala">
+
+<!-- PWA Manifest inline via JS -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Apple touch icon inline SVG → data URI -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230f0f0f'/%3E%3Ctext x='50%25' y='54%25' font-size='280' text-anchor='middle' dominant-baseline='middle'%3E📊%3C/text%3E%3C/svg%3E">
+
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #00e5a0;
+    --text: #f0f0f0;
+    --text2: #888;
+    --plus: #00e5a0;
+    --minus: #ff4d6d;
+    --radius: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 calc(100px + var(--safe-bottom)) 0;
+    overscroll-behavior: none;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: calc(18px + var(--safe-top)) 16px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1px;
+    flex: 1;
+  }
+
+  .solde-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .solde-label {
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .btn-reset {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+    white-space: nowrap;
+  }
+
+  .btn-export {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .form-section {
+    padding: 16px;
+    background: var(--surface);
+    margin: 12px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  .form-title {
+    font-size: 12px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .form-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  label { font-size: 11px; color: var(--text2); letter-spacing: 0.5px; }
+
+  input, select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 16px; /* 16px prevents iOS zoom */
+    font-family: 'IBM Plex Sans', sans-serif;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: none; height: 60px; }
+
+  .type-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
+
+  .type-btn {
+    flex: 1;
+    padding: 12px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .type-btn.plus.active { background: rgba(0,229,160,0.15); border-color: var(--plus); color: var(--plus); }
+  .type-btn.minus.active { background: rgba(255,77,109,0.15); border-color: var(--minus); color: var(--minus); }
+
+  .btn-add {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+    margin-top: 4px;
+    transition: opacity 0.2s;
+  }
+  .btn-add:active { opacity: 0.8; }
+
+  .solde-init-section {
+    padding: 14px 16px;
+    background: var(--surface);
+    margin: 0 16px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .solde-init-section label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .solde-init-section input { flex: 1; }
+
+  .btn-set {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .stats-row { display: flex; gap: 10px; margin: 0 16px 12px; }
+
+  .stat-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+
+  .stat-label { font-size: 10px; color: var(--text2); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; }
+  .stat-value.plus { color: var(--plus); }
+  .stat-value.minus { color: var(--minus); }
+
+  .table-section { margin: 0 16px; }
+
+  .table-title {
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
+
+  thead { background: var(--surface); border-bottom: 1px solid var(--border); }
+
+  th {
+    padding: 10px;
+    text-align: left;
+    color: var(--text2);
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+  .num-cell { font-family: 'IBM Plex Mono', monospace; color: var(--text2); font-size: 11px; }
+  .montant-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 600; white-space: nowrap; }
+  .montant-cell.plus { color: var(--plus); }
+  .montant-cell.minus { color: var(--minus); }
+  .solde-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 600; white-space: nowrap; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge.credit { background: rgba(0,229,160,0.12); color: var(--plus); }
+  .badge.debit { background: rgba(255,77,109,0.12); color: var(--minus); }
+
+  .justif-cell { color: var(--text2); font-size: 11px; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .btn-del { background: transparent; border: none; color: var(--text2); cursor: pointer; padding: 4px; font-size: 14px; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); font-size: 13px; }
+
+  /* PWA install banner */
+  .install-banner {
+    display: none;
+    margin: 0 16px 12px;
+    padding: 12px 16px;
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.3);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .install-banner strong { color: var(--accent); }
+  .install-banner.show { display: block; }
+
+  .toast {
+    position: fixed;
+    bottom: calc(20px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #000;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 999;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>📊 CAISSE</h1>
+    <button class="btn-export" onclick="exportExcel()">📥 Excel</button>
+    <button class="btn-reset" onclick="resetAll()">🗑 Reset</button>
+  </div>
+  <div class="solde-label">Solde actuel</div>
+  <div class="solde-display" id="soldeDisplay">0,00 DA</div>
+</header>
+
+<!-- iOS install hint -->
+<div class="install-banner" id="installBanner">
+  📱 <strong>Installer comme application :</strong> Appuyez sur <strong>⎋ Partager</strong> puis <strong>"Sur l'écran d'accueil"</strong>
+</div>
+
+<!-- Solde initial -->
+<div class="solde-init-section">
+  <label>Solde initial</label>
+  <input type="number" id="soldeInitInput" placeholder="Montant..." step="0.01" inputmode="decimal">
+  <button class="btn-set" onclick="setSoldeInitial()">Définir</button>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-label">Entrées</div>
+    <div class="stat-value plus" id="totalPlus">0,00</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Sorties</div>
+    <div class="stat-value minus" id="totalMinus">0,00</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Opérations</div>
+    <div class="stat-value" id="totalOps">0</div>
+  </div>
+</div>
+
+<!-- Formulaire -->
+<div class="form-section">
+  <div class="form-title">Nouvelle opération</div>
+  <div class="type-toggle">
+    <button class="type-btn plus active" id="btnPlus" onclick="setType('plus')">＋ Crédit</button>
+    <button class="type-btn minus" id="btnMinus" onclick="setType('minus')">－ Débit</button>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Montant (DA)</label>
+      <input type="number" id="montantInput" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label>Opération</label>
+      <input type="text" id="operationInput" placeholder="Ex: Fournitures">
+    </div>
+  </div>
+  <div class="form-group" style="margin-bottom:10px;">
+    <label>Justification</label>
+    <textarea id="justifInput" placeholder="Référence, détails..."></textarea>
+  </div>
+  <button class="btn-add" onclick="addOperation()">Ajouter l'opération</button>
+</div>
+
+<!-- Tableau -->
+<div class="table-section">
+  <div class="table-title">Historique</div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>N°</th>
+          <th>Date & Heure</th>
+          <th>Solde Avant</th>
+          <th>Opération</th>
+          <th>Montant</th>
+          <th>Justification</th>
+          <th>Nouveau Solde</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="8"><div class="empty-state">Aucune opération enregistrée</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Data ──────────────────────────────────────────────
+  let data = JSON.parse(localStorage.getItem('caisse_data') || 'null') || {
+    soldeInitial: 0,
+    operations: []
+  };
+  let currentType = 'plus';
+
+  function save() { localStorage.setItem('caisse_data', JSON.stringify(data)); }
+
+  function formatDA(val) {
+    return val.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DA';
+  }
+
+  // ── iOS install banner ────────────────────────────────
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true;
+  if (isIOS && !isStandalone) {
+    document.getElementById('installBanner').classList.add('show');
+  }
+
+  // ── Service Worker ────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+      const CACHE = 'caisse-v1';
+      const ASSETS = [
+        '/',
+        '/index.html',
+        'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap',
+        'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+      ];
+      self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{}))));
+      self.addEventListener('fetch', e => e.respondWith(
+        caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/index.html')))
+      ));
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl).catch(() => {});
+  }
+
+  // ── Actions ───────────────────────────────────────────
+  function setType(type) {
+    currentType = type;
+    document.getElementById('btnPlus').classList.toggle('active', type === 'plus');
+    document.getElementById('btnMinus').classList.toggle('active', type === 'minus');
+  }
+
+  function setSoldeInitial() {
+    const val = parseFloat(document.getElementById('soldeInitInput').value);
+    if (isNaN(val)) { showToast('Entrez un montant valide'); return; }
+    data.soldeInitial = val;
+    save(); render();
+    showToast('Solde initial défini');
+  }
+
+  function addOperation() {
+    const montant = parseFloat(document.getElementById('montantInput').value);
+    const operation = document.getElementById('operationInput').value.trim();
+    const justif = document.getElementById('justifInput').value.trim();
+
+    if (isNaN(montant) || montant <= 0) { showToast('Entrez un montant valide'); return; }
+    if (!operation) { showToast('Entrez une opération'); return; }
+
+    const now = new Date();
+    const currentSolde = getCurrentSolde();
+    const newSolde = currentSolde + (currentType === 'plus' ? montant : -montant);
+
+    data.operations.push({
+      id: Date.now(),
+      type: currentType,
+      soldeBefore: currentSolde,
+      montant,
+      operation,
+      justif,
+      soldeAfter: newSolde,
+      date: now.toLocaleDateString('fr-FR'),
+      heure: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    });
+
+    save(); render();
+    document.getElementById('montantInput').value = '';
+    document.getElementById('operationInput').value = '';
+    document.getElementById('justifInput').value = '';
+    showToast('Opération ajoutée ✓');
+  }
+
+  function deleteOperation(id) {
+    if (!confirm('Supprimer cette opération ?')) return;
+    data.operations = data.operations.filter(op => op.id !== id);
+    let s = data.soldeInitial;
+    data.operations.forEach(op => {
+      op.soldeBefore = s;
+      op.soldeAfter = s + (op.type === 'plus' ? op.montant : -op.montant);
+      s = op.soldeAfter;
+    });
+    save(); render();
+    showToast('Opération supprimée');
+  }
+
+  function getCurrentSolde() {
+    if (!data.operations.length) return data.soldeInitial;
+    return data.operations[data.operations.length - 1].soldeAfter;
+  }
+
+  function resetAll() {
+    if (!confirm('Réinitialiser toutes les données ?')) return;
+    data = { soldeInitial: 0, operations: [] };
+    save(); render();
+    showToast('Données réinitialisées');
+  }
+
+  // ── Render ────────────────────────────────────────────
+  function render() {
+    document.getElementById('soldeDisplay').textContent = formatDA(getCurrentSolde());
+    document.getElementById('soldeInitInput').value = data.soldeInitial || '';
+
+    let totalPlus = 0, totalMinus = 0;
+    data.operations.forEach(op => op.type === 'plus' ? totalPlus += op.montant : totalMinus += op.montant);
+    document.getElementById('totalPlus').textContent = formatDA(totalPlus);
+    document.getElementById('totalMinus').textContent = formatDA(totalMinus);
+    document.getElementById('totalOps').textContent = data.operations.length;
+
+    const tbody = document.getElementById('tableBody');
+    if (!data.operations.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Aucune opération enregistrée</div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.operations.map((op, i) => `
+      <tr>
+        <td class="num-cell">${i + 1}</td>
+        <td class="num-cell" style="white-space:nowrap">${op.date}<br><span style="color:var(--accent);font-size:10px">${op.heure || ''}</span></td>
+        <td class="solde-cell">${formatDA(op.soldeBefore)}</td>
+        <td>
+          <span class="badge ${op.type === 'plus' ? 'credit' : 'debit'}">${op.type === 'plus' ? 'CRÉDIT' : 'DÉBIT'}</span>
+          <div style="margin-top:3px;font-size:11px">${op.operation}</div>
+        </td>
+        <td class="montant-cell ${op.type}">${op.type === 'plus' ? '+' : '−'}${formatDA(op.montant)}</td>
+        <td class="justif-cell" title="${op.justif || ''}">${op.justif || '—'}</td>
+        <td class="solde-cell" style="color:${op.soldeAfter >= 0 ? 'var(--plus)' : 'var(--minus)'}">${formatDA(op.soldeAfter)}</td>
+        <td><button class="btn-del" onclick="deleteOperation(${op.id})">🗑</button></td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Excel Export ──────────────────────────────────────
+  function exportExcel() {
+    if (!data.operations.length) { showToast('Aucune opération à exporter'); return; }
+
+    const rows = [['N°','Date','Heure','Solde Avant (DA)','Opération','Type','Montant (DA)','Justification','Nouveau Solde (DA)']];
+    data.operations.forEach((op, i) => rows.push([
+      i + 1, op.date, op.heure || '', op.soldeBefore, op.operation,
+      op.type === 'plus' ? 'CRÉDIT' : 'DÉBIT',
+      op.type === 'plus' ? op.montant : -op.montant,
+      op.justif || '', op.soldeAfter
+    ]));
+
+    rows.push([], ['','Solde Initial', data.soldeInitial], ['','Solde Final', getCurrentSolde()],
+      ['','Total Entrées', data.operations.filter(o=>o.type==='plus').reduce((s,o)=>s+o.montant,0)],
+      ['','Total Sorties', data.operations.filter(o=>o.type==='minus').reduce((s,o)=>s+o.montant,0)]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:12},{wch:8},{wch:16},{wch:28},{wch:10},{wch:14},{wch:30},{wch:18}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Caisse');
+    XLSX.writeFile(wb, `Caisse_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`);
+    showToast('Fichier Excel exporté ✓');
+  }
+
+  // ── Toast ─────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  render();
+</script>
+</body>
+</html>
