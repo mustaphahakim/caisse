@@ -454,13 +454,13 @@
       const CACHE = 'caisse-v1';
       const ASSETS = [
         '/',
-        '/ahmedapp.htlm',
+        '/ahmedapp.html',
         'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap',
         'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
       ];
       self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{}))));
       self.addEventListener('fetch', e => e.respondWith(
-        caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/ahmedapp.htlm')))
+        caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/ahmedapp.html')))
       ));
     `;
     const blob = new Blob([swCode], { type: 'application/javascript' });
