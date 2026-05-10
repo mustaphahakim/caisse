@@ -14,7 +14,7 @@
 <meta name="description" content="Gestion financière — Institut Ahsen Bouderbala">
 
 <!-- PWA Manifest inline via JS -->
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.json">
 
 <!-- Apple touch icon inline SVG → data URI -->
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230f0f0f'/%3E%3Ctext x='50%25' y='54%25' font-size='280' text-anchor='middle' dominant-baseline='middle'%3E📊%3C/text%3E%3C/svg%3E">
@@ -302,6 +302,77 @@
 
   .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); font-size: 13px; }
 
+  /* Edit Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .modal-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .btn-cancel {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .btn-save {
+    flex: 2;
+    padding: 12px;
+    background: var(--accent);
+    border: none;
+    color: #000;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .btn-edit {
+    background: transparent;
+    border: none;
+    color: #4a9eff;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 14px;
+  }
+
   /* PWA install banner */
   .install-banner {
     display: none;
@@ -422,6 +493,36 @@
         <tr><td colspan="8"><div class="empty-state">Aucune opération enregistrée</div></td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">✏️ Modifier l'opération</div>
+    <input type="hidden" id="editId">
+    <div class="type-toggle" style="margin-bottom:12px;">
+      <button class="type-btn plus" id="editBtnPlus" onclick="setEditType('plus')">＋ Crédit</button>
+      <button class="type-btn minus" id="editBtnMinus" onclick="setEditType('minus')">－ Débit</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Montant (DA)</label>
+        <input type="number" id="editMontant" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
+      </div>
+      <div class="form-group">
+        <label>Opération</label>
+        <input type="text" id="editOperation" placeholder="Libellé">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:4px;">
+      <label>Justification</label>
+      <textarea id="editJustif" placeholder="Référence, détails..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+      <button class="btn-save" onclick="saveEdit()">Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -568,10 +669,69 @@
         <td class="montant-cell ${op.type}">${op.type === 'plus' ? '+' : '−'}${formatDA(op.montant)}</td>
         <td class="justif-cell" title="${op.justif || ''}">${op.justif || '—'}</td>
         <td class="solde-cell" style="color:${op.soldeAfter >= 0 ? 'var(--plus)' : 'var(--minus)'}">${formatDA(op.soldeAfter)}</td>
-        <td><button class="btn-del" onclick="deleteOperation(${op.id})">🗑</button></td>
+        <td><button class="btn-edit" onclick="openEdit(${op.id})">✏️</button><button class="btn-del" onclick="deleteOperation(${op.id})">🗑</button></td>
       </tr>
     `).join('');
   }
+
+  // ── Edit Modal ────────────────────────────────────────
+  let editType = 'plus';
+
+  function setEditType(type) {
+    editType = type;
+    document.getElementById('editBtnPlus').classList.toggle('active', type === 'plus');
+    document.getElementById('editBtnMinus').classList.toggle('active', type === 'minus');
+  }
+
+  function openEdit(id) {
+    const op = data.operations.find(o => o.id === id);
+    if (!op) return;
+    document.getElementById('editId').value = id;
+    document.getElementById('editMontant').value = op.montant;
+    document.getElementById('editOperation').value = op.operation;
+    document.getElementById('editJustif').value = op.justif || '';
+    setEditType(op.type);
+    document.getElementById('editModal').classList.add('show');
+  }
+
+  function closeModal() {
+    document.getElementById('editModal').classList.remove('show');
+  }
+
+  function saveEdit() {
+    const id = parseInt(document.getElementById('editId').value);
+    const montant = parseFloat(document.getElementById('editMontant').value);
+    const operation = document.getElementById('editOperation').value.trim();
+    const justif = document.getElementById('editJustif').value.trim();
+
+    if (isNaN(montant) || montant <= 0) { showToast('Montant invalide'); return; }
+    if (!operation) { showToast('Opération requise'); return; }
+
+    const idx = data.operations.findIndex(o => o.id === id);
+    if (idx === -1) return;
+
+    data.operations[idx].type = editType;
+    data.operations[idx].montant = montant;
+    data.operations[idx].operation = operation;
+    data.operations[idx].justif = justif;
+
+    // Recalculate all soldes from beginning
+    let s = data.soldeInitial;
+    data.operations.forEach(op => {
+      op.soldeBefore = s;
+      op.soldeAfter = s + (op.type === 'plus' ? op.montant : -op.montant);
+      s = op.soldeAfter;
+    });
+
+    save(); render();
+    closeModal();
+    showToast('Opération modifiée ✓');
+  }
+
+  // Close modal on overlay click
+  document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
 
   // ── Excel Export ──────────────────────────────────────
   function exportExcel() {
